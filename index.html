@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plant Disease Detection</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-green-50 min-h-screen flex flex-col items-center p-4">
+  <h1 class="text-3xl font-bold mb-6 text-center">Plant Disease Detection</h1>
+
+  <!-- File Upload -->
+  <div class="w-full max-w-xl bg-white p-6 rounded-lg shadow-lg">
+    <input
+      id="fileInput"
+      type="file"
+      multiple
+      accept="image/*"
+      class="mb-4 w-full"
+    />
+    <div id="previewContainer" class="flex flex-wrap gap-4 mb-4"></div>
+    <button
+      id="predictBtn"
+      class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700"
+    >
+      Predict Disease
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsContainer" class="w-full max-w-5xl mt-6 overflow-x-auto"></div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const previewContainer = document.getElementById("previewContainer");
+    const predictBtn = document.getElementById("predictBtn");
+    const resultsContainer = document.getElementById("resultsContainer");
+
+    let files = [];
+
+    // Show image previews
+    fileInput.addEventListener("change", (e) => {
+      files = Array.from(e.target.files);
+      previewContainer.innerHTML = "";
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = document.createElement("img");
+          img.src = ev.target.result;
+          img.className = "w-24 h-24 object-cover rounded border";
+          previewContainer.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    // Predict button
+    predictBtn.addEventListener("click", async () => {
+      if(files.length === 0) {
+        alert("Please select at least one image.");
+        return;
+      }
+
+      const formData = new FormData();
+      files.forEach(file => formData.append("files", file));
+
+      resultsContainer.innerHTML = "<p class='text-center my-4'>Analyzing images...</p>";
+
+      try {
+        const res = await fetch("http://127.0.0.1:8000/plants/detect_batch", {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+
+        // Render table with image preview
+        let tableHTML = `
+          <table class="table-auto w-full border-collapse border border-gray-300">
+            <thead class="bg-green-200">
+              <tr>
+                <th class="border px-2 py-1">Image</th>
+                <th class="border px-2 py-1">Filename</th>
+                <th class="border px-2 py-1">Disease</th>
+                <th class="border px-2 py-1">Confidence</th>
+                <th class="border px-2 py-1">Description</th>
+                <th class="border px-2 py-1">Treatment</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        data.forEach((item, index) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            document.getElementById(`img-${index}`).src = ev.target.result;
+          };
+          reader.readAsDataURL(files[index]);
+
+          tableHTML += `
+            <tr class="hover:bg-green-50">
+              <td class="border px-2 py-1">
+                <img id="img-${index}" class="w-20 h-20 object-cover rounded border"/>
+              </td>
+              <td class="border px-2 py-1">${item.filename}</td>
+              <td class="border px-2 py-1">${item.disease}</td>
+              <td class="border px-2 py-1">${(item.confidence*100).toFixed(2)}%</td>
+              <td class="border px-2 py-1">${item.description}</td>
+              <td class="border px-2 py-1">${item.treatment}</td>
+            </tr>
+          `;
+        });
+
+        tableHTML += `</tbody></table>`;
+        resultsContainer.innerHTML = tableHTML;
+
+      } catch (err) {
+        console.error(err);
+        resultsContainer.innerHTML = `<p class="text-red-500 text-center">Error analyzing images.</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
